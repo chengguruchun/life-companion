@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Run ON the Mac after life-companion-v0.1.tgz is copied next to AIProject/
+# Run ON the Mac after life-companion-v0.3.0.tgz is copied next to AIProject/
 set -euo pipefail
 TGZ="${1:-}"
 DEST="${2:-/Users/chunchenglu/Downloads/AIProject/life-companion}"
 PARENT="$(dirname "$DEST")"
 if [[ -z "$TGZ" ]]; then
-  echo "Usage: $0 /path/to/life-companion-v0.1.tgz [dest_dir]" >&2
+  echo "Usage: $0 /path/to/life-companion-v0.3.0.tgz [dest_dir]" >&2
   exit 2
 fi
 mkdir -p "$PARENT"

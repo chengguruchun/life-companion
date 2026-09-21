@@ -8,7 +8,9 @@ from pathlib import Path
 from typing import Any, Optional
 
 from life_companion.models.goals import GoalTree
+from life_companion.models.outcome import GapReport, Outcome
 from life_companion.models.proposal import PreferenceWrite
+from life_companion.models.safety import DecisionRecord
 
 
 class LocalStore:
@@ -19,6 +21,9 @@ class LocalStore:
         self.goals_path = self.data_dir / "goals.json"
         self.prefs_path = self.data_dir / "preferences.json"
         self.audit_path = self.data_dir / "critic_overrides.jsonl"
+        self.outcomes_path = self.data_dir / "outcomes.jsonl"
+        self.gaps_path = self.data_dir / "gap_reports.jsonl"
+        self.decisions_path = self.data_dir / "decisions.jsonl"
 
     def load_goals(self) -> GoalTree:
         if not self.goals_path.exists():
@@ -62,3 +67,51 @@ class LocalStore:
         entry = {"proposal_id": proposal_id, "reason": reason}
         with self.audit_path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+    # --- v0.2 outcomes / gaps ---
+
+    def save_outcome(self, outcome: Outcome) -> None:
+        """Append outcome to outcomes.jsonl."""
+        with self.outcomes_path.open("a", encoding="utf-8") as f:
+            f.write(outcome.model_dump_json() + "\n")
+
+    def load_outcomes(self) -> list[Outcome]:
+        if not self.outcomes_path.exists():
+            return []
+        rows: list[Outcome] = []
+        for line in self.outcomes_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line:
+                rows.append(Outcome.model_validate_json(line))
+        return rows
+
+    def save_gap_report(self, report: GapReport) -> None:
+        with self.gaps_path.open("a", encoding="utf-8") as f:
+            f.write(report.model_dump_json() + "\n")
+
+    def load_gap_reports(self) -> list[GapReport]:
+        if not self.gaps_path.exists():
+            return []
+        rows: list[GapReport] = []
+        for line in self.gaps_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line:
+                rows.append(GapReport.model_validate_json(line))
+        return rows
+
+    # --- v0.3 decisions ---
+
+    def save_decision(self, record: DecisionRecord) -> DecisionRecord:
+        with self.decisions_path.open("a", encoding="utf-8") as f:
+            f.write(record.model_dump_json() + "\n")
+        return record
+
+    def load_decisions(self) -> list[DecisionRecord]:
+        if not self.decisions_path.exists():
+            return []
+        rows: list[DecisionRecord] = []
+        for line in self.decisions_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line:
+                rows.append(DecisionRecord.model_validate_json(line))
+        return rows

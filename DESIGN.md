@@ -140,3 +140,70 @@ Review:
 - Real Google Calendar / Gmail OAuth
 - Production multi-tenant SaaS
 - Rigid scene tool whitelist tables
+
+---
+
+## v0.2 Life Loop (implemented)
+
+Close the loop: **Goal → Plan → Action → Outcome → Feedback → Memory** (with goal-evolution *hooks* as suggestions only).
+
+```
+Proposal ──► Critic gate ──► (simulate) Execute
+     │                              │
+     │                              ▼
+     │                         Outcome
+     │                         (expected vs actual metrics)
+     │                              │
+     │                              ▼
+     │                         GapReport + suggestions
+     │                              │
+     ▼                              ▼
+Goal tree / prefs ◄── soft prefs / hypotheses / goal-tweak suggestions
+                      (never auto-mutate Vision)
+```
+
+### Outcome model
+- `Outcome`: `proposal_id`, `expected`/`actual` `Metrics`, timestamps, notes, optional `decision_id`
+- Metrics: `sleep_hours`, `work_progress` (0–1), `life_happiness` (0–1), optional `fatigue` (0–1)
+
+### Gap analysis
+- `analyze_gaps(outcome) -> GapReport` with per-metric delta + severity + messages
+- Suggestions: `schedule_hint` | `soft_preference` | `hypothesis` | `goal_tweak`
+
+### Feedback loop (conservative)
+- Soft prefs written under `soft:` keys with capped confidence (not hard-locked)
+- Hypotheses appended to memory (`_hypotheses`) as Observation→Hypothesis (not Confirmed)
+- Goal-tree tweaks returned as `GoalTweakSuggestion` only — **Vision is never auto-mutated**
+- Persisted in `data/outcomes.jsonl` + `data/gap_reports.jsonl`
+
+### Dry-run demo
+`python -m life_companion.cli demo --dry-run` runs a Life Loop scenario (late-night plan → sleep/work gaps → soft prefs + tweaks) without API keys.
+
+---
+
+## v0.3 Runtime Safety & Decision Trace (implemented)
+
+### SafetyLevel
+`low | medium | high | irreversible` on `Proposal` and `ToolAction`.
+Heuristics bump email send / delete / cancel-others toward high/irreversible.
+
+### HITL gate
+- `ensure_hitl_or_raise` / `gate_execution` block execute for high/irreversible unless `human_approved=True`
+- `force=True` allows through but sets `human_override=True` on the decision record
+
+### Decision Log (append-only JSONL)
+Fields: Decision, Context, Goals involved, Constraints, Proposal summary,
+Critic objections/verdict, Final decision, Outcome id (optional), Human feedback/override,
+Safety level, Notes.
+
+Paths: `data/decisions.jsonl` (via `DecisionLog` / `LocalStore.save_decision`).
+
+### Tests
+Gate block/approve/force + decision log write/read covered in `tests/test_hitl_and_decision_log.py`.
+
+---
+
+## v0.4 (planned only — see ROADMAP.md)
+
+Calendar/Gmail/Weather/Traffic adapters, multi-objective trade-off, Memory confidence pipeline
+(Observation→Hypothesis→Confirmed), Personal knowledge, Family/Code Agent. **Not built in this release.**

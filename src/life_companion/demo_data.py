@@ -116,3 +116,39 @@ def sample_preference_proposal() -> Proposal:
         ],
         rationale="尝试沉淀稳定习惯；低置信度应被 critic 卡住。",
     )
+
+def sample_hitl_email_proposal() -> Proposal:
+    """High-safety email send — must be blocked without human_approved."""
+    return Proposal(
+        type=ProposalType.SEND_EMAIL,
+        summary="Send OKR update email to boss",
+        tool_actions=[
+            ToolAction(
+                tool="email_draft_send",
+                args={"to": "boss@example.com", "subject": "OKR", "body": "..."},
+                mutating=True,
+                requires_hitl=True,
+                safety_level=__import__(
+                    "life_companion.models.safety", fromlist=["SafetyLevel"]
+                ).SafetyLevel.HIGH,
+            )
+        ],
+        safety_level=__import__(
+            "life_companion.models.safety", fromlist=["SafetyLevel"]
+        ).SafetyLevel.HIGH,
+        rationale="工作顺利：同步进度；需 HITL。",
+    )
+
+
+def sample_late_night_plan_proposal() -> Proposal:
+    """Day plan with late block — used to simulate sleep gap in life loop."""
+    blocks = [
+        TodayPlanBlock(start="09:00", end="11:00", title="Deep work", linked_goal_id="st1"),
+        TodayPlanBlock(start="22:30", end="23:30", title="Late coding sprint", linked_goal_id="st1"),
+    ]
+    return Proposal(
+        type=ProposalType.PLAN_DAY,
+        summary="Aggressive late-night plan (sleep risk)",
+        today_plan=blocks,
+        rationale="压测 sleep gap → feedback loop。",
+    )

@@ -8,6 +8,8 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
+from life_companion.models.safety import SafetyLevel
+
 
 class ProposalType(str, Enum):
     PLAN_DAY = "plan_day"
@@ -43,6 +45,7 @@ class ToolAction(BaseModel):
     args: dict[str, Any] = Field(default_factory=dict)
     mutating: bool = False
     requires_hitl: bool = False
+    safety_level: SafetyLevel = SafetyLevel.LOW
 
 
 class Proposal(BaseModel):
@@ -54,6 +57,7 @@ class Proposal(BaseModel):
     preference_writes: Optional[list[PreferenceWrite]] = None
     tool_actions: Optional[list[ToolAction]] = None
     rationale: str = ""  # how it serves 工作顺利 / 生活开心
+    safety_level: SafetyLevel = SafetyLevel.LOW
     user_override_skip_critic: bool = False  # 「按这个执行」
 
 
