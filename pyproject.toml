@@ -1,0 +1,38 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "life-companion"
+version = "0.1.0"
+description = "Goal-driven life companion agent (工作顺利 + 生活开心)"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{ name = "chengguruchun" }]
+dependencies = [
+  "pydantic>=2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+]
+agents = [
+  "deepagents>=0.7",
+  "langchain>=0.3",
+  "langgraph>=0.2",
+]
+
+[project.scripts]
+life-companion = "life_companion.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/life_companion"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/life_companion", "README.md", "DESIGN.md", "tests"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

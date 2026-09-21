@@ -1,0 +1,3 @@
+from life_companion.prompts.system import CRITIC_SYSTEM_PROMPT, PLANNER_SYSTEM_PROMPT
+
+__all__ = ["PLANNER_SYSTEM_PROMPT", "CRITIC_SYSTEM_PROMPT"]
