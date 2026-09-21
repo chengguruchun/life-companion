@@ -31,7 +31,7 @@ def _cmd_demo(args: argparse.Namespace) -> int:
     tree = sample_goal_tree()
     store.save_goals(tree)
 
-    print("=== Life Companion demo (v0.3) ===")
+    print("=== Life Companion demo (v0.3.1) ===")
     print(f"data_dir: {store.data_dir}")
     print(f"dry_run: {args.dry_run}")
     print(f"deepagents_available: {deepagents_available()}")
@@ -88,6 +88,14 @@ def _cmd_demo(args: argparse.Namespace) -> int:
         human_approved=True,  # day plan is low safety; approve harmless
     )
     print(f"  pipeline_status={life.pipeline.status} hitl_blocked={life.hitl_blocked}")
+    print(f"  trace_id: {life.context.get('trace_id')}")
+    if life.execution:
+        print(f"  execution: id={life.execution.execution_id} status={life.execution.status.value}")
+    if life.decision:
+        print(
+            f"  decision_trace: {life.decision.trace_id} "
+            f"effective_safety={life.decision.safety_level.value}"
+        )
     if life.gap_report:
         print(f"  gap: {life.gap_report.summary}")
         for g in life.gap_report.gaps[:4]:
@@ -130,7 +138,11 @@ def _cmd_demo(args: argparse.Namespace) -> int:
         critic_verdict="pass",
     )
     store.save_decision(rec)
-    print(f"  approved_decision: {rec.final_decision} override={rec.human_override}")
+    print(
+        f"  approved_decision: {rec.final_decision} override={rec.human_override} "
+        f"proposal_safety={rec.proposal_safety_level} effective={rec.effective_safety_level} "
+        f"trace_id={rec.trace_id}"
+    )
     # 3) forced override
     rec2 = gate_execution(
         sample_hitl_email_proposal(),

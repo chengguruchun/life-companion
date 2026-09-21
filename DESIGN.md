@@ -207,3 +207,40 @@ Gate block/approve/force + decision log write/read covered in `tests/test_hitl_a
 
 Calendar/Gmail/Weather/Traffic adapters, multi-objective trade-off, Memory confidence pipeline
 (Observation→Hypothesis→Confirmed), Personal knowledge, Family/Code Agent. **Not built in this release.**
+
+
+---
+
+## v0.3.1 Hardening (shipped)
+
+### Provisional memory (v0.2 legacy)
+
+`soft:*` preference keys and the `_hypotheses` bucket are a **v0.2 provisional / legacy**
+memory representation. Writes are tagged `provisional=true` / `legacy_v02=true`.
+They must not be treated as Confirmed beliefs. v0.4 migrates to MemoryEntry / Evidence
+([docs/v0.4-memory-confidence.md](docs/v0.4-memory-confidence.md)). **No v0.4 pipeline code in this release.**
+
+### ExecutionRecord / Observation / trace
+
+```
+Proposal → ExecutionRecord → Observation → Outcome → Gap → Feedback → Memory
+```
+
+- **Outcome ≠ Action result.** ExecutionRecord captures what was attempted.
+- Light Pydantic models: `ExecutionRecord`, optional thin `Observation`.
+- Dry-run creates an ExecutionRecord stub before Outcome.
+- One `trace_id` links DecisionRecord, ExecutionRecord, Outcome, FeedbackResult.
+- Detail: [docs/v0.3.1-runtime-trace.md](docs/v0.3.1-runtime-trace.md)
+
+### Effective risk (HITL)
+
+HITL / `gate_execution` always uses **`effective_safety_level`** =
+`max(proposal.safety_level, tool_actions[*].safety_level)` (plus send/delete heuristics).
+A proposal that self-declares `low` but includes a `high` tool action is gated as **high**.
+DecisionRecord stores both `proposal_safety_level` and `effective_safety_level`
+(`safety_level` remains an alias of effective for compatibility).
+
+### Goal Evolution
+
+- **Agent suggests** short-term / today tweaks (and soft prefs).
+- **Human is Goal Authority** — Vision and confirmed goals are never auto-mutated from a single Outcome.

@@ -14,6 +14,13 @@ from life_companion.models.proposal import (
     ToolAction,
     Verdict,
 )
+from life_companion.models.execution import ExecutionRecord, ExecutionStatus, Observation
+from life_companion.models.safety import (
+    HITL_REQUIRED_LEVELS,
+    DecisionRecord,
+    HitlBlockedError,
+    SafetyLevel,
+)
 
 __all__ = [
     "GoalLayer",
@@ -28,4 +35,11 @@ __all__ = [
     "TodayPlanBlock",
     "ToolAction",
     "Verdict",
+    "ExecutionRecord",
+    "ExecutionStatus",
+    "Observation",
+    "HITL_REQUIRED_LEVELS",
+    "DecisionRecord",
+    "HitlBlockedError",
+    "SafetyLevel",
 ]

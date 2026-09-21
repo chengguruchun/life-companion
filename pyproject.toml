@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "life-companion"
-version = "0.3.0"
+version = "0.3.1"
 description = "Goal-driven life companion agent (工作顺利 + 生活开心)"
 readme = "README.md"
 requires-python = ">=3.11"

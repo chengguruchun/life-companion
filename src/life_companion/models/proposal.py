@@ -50,6 +50,7 @@ class ToolAction(BaseModel):
 
 class Proposal(BaseModel):
     proposal_id: str = Field(default_factory=lambda: str(uuid4()))
+    trace_id: str = Field(default_factory=lambda: str(uuid4()))
     type: ProposalType
     summary: str
     goal_changes: Optional[list[dict[str, Any]]] = None

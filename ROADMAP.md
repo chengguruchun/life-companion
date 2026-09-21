@@ -5,7 +5,22 @@
 | v0.1 | ✅ shipped | Goal tree, proposal→critic pipeline, dry-run stubs, local JSON store |
 | v0.2 | ✅ shipped | Life Loop: Outcome / Gap / Feedback / soft Memory |
 | v0.3 | ✅ shipped | SafetyLevel, HITL gate, Decision Log |
+| **v0.3.1** | ✅ shipped | Hardening: provisional memory markers, `trace_id`, ExecutionRecord design/stub, effective-risk docs — **still no v0.4 code** |
 | **v0.4** | 🧭 planned (not built); **Memory 设计已细化** | Integrations + multi-objective + [memory confidence 设计](docs/v0.4-memory-confidence.md) |
+
+---
+
+## v0.3.1 — Hardening (no new product surface)
+
+Surgical clarity before integrations:
+
+- Mark v0.2 `soft:*` / `_hypotheses` as **provisional / legacy** (metadata on writes)
+- Unify `trace_id` across critic → HITL → ExecutionRecord → Outcome → Feedback
+- Document Proposal → ExecutionRecord → Observation → Outcome boundary; light schemas + dry-run stub
+- Document that HITL uses **effective** (max action) risk; DecisionRecord keeps proposal vs effective
+- README / DESIGN architecture node; Goal Evolution (Agent suggests / Human is Goal Authority)
+
+**Still no v0.4 MemoryEntry service / confidence pipeline code. Still no Calendar/Gmail.**
 
 ---
 

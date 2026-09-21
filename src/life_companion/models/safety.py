@@ -22,10 +22,16 @@ HITL_REQUIRED_LEVELS = {SafetyLevel.HIGH, SafetyLevel.IRREVERSIBLE}
 
 
 class DecisionRecord(BaseModel):
-    """Append-only decision trace row."""
+    """Append-only decision trace row.
+
+    HITL / gating always uses *effective_safety_level* (max of proposal
+    self-declared level and tool_actions), not proposal.safety_level alone.
+    ``safety_level`` is kept as an alias of effective for backward compatibility.
+    """
 
     decision_id: str = Field(default_factory=lambda: str(uuid4()))
     recorded_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    trace_id: Optional[str] = None
     decision: str  # e.g. execute | ask_user | rejected | blocked_hitl | forced_override
     context: dict[str, Any] = Field(default_factory=dict)
     goals_involved: list[str] = Field(default_factory=list)
@@ -38,6 +44,11 @@ class DecisionRecord(BaseModel):
     outcome_id: Optional[str] = None
     human_feedback: Optional[str] = None
     human_override: bool = False
+    # Declared on the proposal (self-assessment).
+    proposal_safety_level: Optional[SafetyLevel] = None
+    # Max(proposal, tool_actions) — what HITL actually uses.
+    effective_safety_level: Optional[SafetyLevel] = None
+    # Backward-compatible alias of effective_safety_level.
     safety_level: SafetyLevel = SafetyLevel.LOW
     notes: list[str] = Field(default_factory=list)
 

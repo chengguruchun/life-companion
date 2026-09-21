@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 from life_companion.agents.pipeline import PipelineResult, run_proposal_pipeline
 from life_companion.loop.feedback import apply_feedback_loop
 from life_companion.loop.gap import analyze_gaps
+from life_companion.models.execution import ExecutionRecord, ExecutionStatus
 from life_companion.models.outcome import FeedbackResult, GapReport, Metrics, Outcome
 from life_companion.models.proposal import Proposal
 from life_companion.models.safety import DecisionRecord
@@ -27,6 +29,7 @@ class LifeLoopResult:
     outcome: Optional[Outcome]
     gap_report: Optional[GapReport]
     feedback: Optional[FeedbackResult]
+    execution: Optional[ExecutionRecord] = None
     hitl_blocked: bool = False
     notes: list[str] = field(default_factory=list)
     context: dict[str, Any] = field(default_factory=dict)
@@ -38,11 +41,13 @@ def _default_expected(proposal: Proposal) -> Metrics:
     happy = 0.7
     fatigue = 0.3
     for b in proposal.today_plan or []:
-        if b.start >= "22:00":
+        start = getattr(b, "start", "09:00")
+        if start >= "22:00":
             sleep = 6.5
             fatigue = 0.5
-        title_l = b.title.lower()
-        if "walk" in title_l or "散步" in b.title:
+        title = getattr(b, "title", "") or ""
+        title_l = title.lower()
+        if "walk" in title_l or "散步" in title:
             happy = 0.8
         if "deep" in title_l or "work" in title_l or "coding" in title_l:
             work = 0.75
@@ -66,25 +71,34 @@ def run_life_loop_dry(
 ) -> LifeLoopResult:
     """Dry-run Life Loop (no API keys).
 
-    proposal → critic pipeline → HITL gate → simulate execute →
+    proposal → critic pipeline → HITL gate → ExecutionRecord stub →
     outcome → gap → feedback → memory (+ decision log).
+
+    A single ``trace_id`` flows critic → HITL → execution → outcome → feedback.
     """
     store = store or LocalStore()
     notes: list[str] = []
     dlog = DecisionLog(store.decisions_path)
+    trace_id = getattr(proposal, "trace_id", None) or proposal.proposal_id
 
     pipe = run_proposal_pipeline(proposal, dry_run=True, store=store)
     notes.extend(pipe.notes)
+    if getattr(pipe.proposal, "trace_id", None) != trace_id:
+        pipe.proposal = pipe.proposal.model_copy(update={"trace_id": trace_id})
 
     decision: Optional[DecisionRecord] = None
     outcome: Optional[Outcome] = None
     gap_report: Optional[GapReport] = None
     feedback: Optional[FeedbackResult] = None
+    execution: Optional[ExecutionRecord] = None
 
     if pipe.status in ("rejected", "ask_user"):
         notes.append(f"Skipping execute/outcome: pipeline status={pipe.status}")
+        eff = effective_safety_level(pipe.proposal)
         decision = DecisionRecord(
             decision=pipe.status,
+            trace_id=trace_id,
+            context={"trace_id": trace_id, "dry_run": True},
             proposal_summary=pipe.proposal.summary,
             proposal_id=pipe.proposal.proposal_id,
             critic_verdict=pipe.review.verdict.value if pipe.review else None,
@@ -92,7 +106,9 @@ def run_life_loop_dry(
                 o.model_dump() for o in (pipe.review.objections if pipe.review else [])
             ],
             final_decision=pipe.status,
-            safety_level=effective_safety_level(pipe.proposal),
+            proposal_safety_level=pipe.proposal.safety_level,
+            effective_safety_level=eff,
+            safety_level=eff,
             notes=list(notes),
         )
         dlog.append(decision)
@@ -104,6 +120,7 @@ def run_life_loop_dry(
             gap_report=None,
             feedback=None,
             notes=notes,
+            context={"trace_id": trace_id},
         )
 
     try:
@@ -121,11 +138,12 @@ def run_life_loop_dry(
             critic_objections=list(pipe.review.objections) if pipe.review else [],
             goals_involved=goals,
             constraints=list(store.load_goals().hard_constraints),
-            context={"dry_run": True, "pipeline_status": pipe.status},
+            context={"dry_run": True, "pipeline_status": pipe.status, "trace_id": trace_id},
         )
         store.save_decision(decision)
         notes.append(
-            f"Decision logged: {decision.final_decision} (safety={decision.safety_level.value})"
+            f"Decision logged: {decision.final_decision} "
+            f"(effective_safety={decision.safety_level.value} trace_id={trace_id})"
         )
     except HitlBlockedError as err:
         notes.append(f"HITL blocked: {err}")
@@ -141,6 +159,7 @@ def run_life_loop_dry(
             feedback=None,
             hitl_blocked=True,
             notes=notes,
+            context={"trace_id": trace_id},
         )
 
     if not simulate_execute:
@@ -152,7 +171,23 @@ def run_life_loop_dry(
             gap_report=None,
             feedback=None,
             notes=notes,
+            context={"trace_id": trace_id},
         )
+
+    tool_actions = [
+        a.model_dump() if hasattr(a, "model_dump") else dict(a)
+        for a in (pipe.proposal.tool_actions or [])
+    ]
+    execution = ExecutionRecord(
+        trace_id=trace_id,
+        proposal_id=pipe.proposal.proposal_id,
+        status=ExecutionStatus.DRY_RUN,
+        tool_actions=tool_actions,
+        actual_changes=[{"kind": "simulated", "summary": pipe.proposal.summary}],
+        observation_notes="dry-run stub observation (no real side effects)",
+        observed_signals={"dry_run": True},
+    )
+    notes.append(f"ExecutionRecord stub created (execution_id={execution.execution_id}).")
 
     exp = expected or _default_expected(pipe.proposal)
     act = actual or Metrics(
@@ -165,23 +200,38 @@ def run_life_loop_dry(
 
     outcome = Outcome(
         proposal_id=pipe.proposal.proposal_id,
+        trace_id=trace_id,
         expected=exp,
         actual=act,
         notes="dry-run simulated outcome",
         decision_id=decision.decision_id if decision else None,
     )
     gap_report = analyze_gaps(outcome)
+    gap_report = gap_report.model_copy(update={"trace_id": trace_id})
     notes.append(gap_report.summary)
     feedback = apply_feedback_loop(
         outcome, store=store, gap_report=gap_report, persist=True
     )
     notes.extend(feedback.notes)
 
+    execution = execution.model_copy(
+        update={
+            "finished_at": datetime.now(timezone.utc),
+            "status": ExecutionStatus.SUCCEEDED,
+            "observation_notes": (
+                execution.observation_notes
+                + f" | outcome={outcome.outcome_id} gaps={len(gap_report.gaps)}"
+            ),
+        }
+    )
+
     if decision is not None:
         linked = decision.model_copy(
             update={
                 "outcome_id": outcome.outcome_id,
-                "notes": list(decision.notes) + ["outcome linked"],
+                "trace_id": trace_id,
+                "notes": list(decision.notes)
+                + ["outcome linked", f"execution_id={execution.execution_id}"],
             }
         )
         store.save_decision(linked)
@@ -193,5 +243,7 @@ def run_life_loop_dry(
         outcome=outcome,
         gap_report=gap_report,
         feedback=feedback,
+        execution=execution,
         notes=notes,
+        context={"trace_id": trace_id, "execution_id": execution.execution_id},
     )

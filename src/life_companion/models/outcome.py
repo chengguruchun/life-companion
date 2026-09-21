@@ -39,6 +39,7 @@ class Outcome(BaseModel):
 
     outcome_id: str = Field(default_factory=lambda: str(uuid4()))
     proposal_id: str
+    trace_id: Optional[str] = None
     expected: Metrics
     actual: Metrics
     recorded_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -74,6 +75,7 @@ class FeedbackSuggestion(BaseModel):
 class GapReport(BaseModel):
     outcome_id: str
     proposal_id: str
+    trace_id: Optional[str] = None
     gaps: list[MetricGap] = Field(default_factory=list)
     suggestions: list[FeedbackSuggestion] = Field(default_factory=list)
     summary: str = ""
@@ -93,6 +95,7 @@ class FeedbackResult(BaseModel):
     """Result of writing conservative learnings into memory."""
 
     outcome_id: str
+    trace_id: Optional[str] = None
     soft_preferences_written: dict[str, Any] = Field(default_factory=dict)
     hypotheses_appended: list[str] = Field(default_factory=list)
     goal_tweak_suggestions: list[GoalTweakSuggestion] = Field(default_factory=list)

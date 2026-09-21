@@ -1,4 +1,9 @@
-"""HITL gate for high / irreversible actions."""
+"""HITL gate for high / irreversible actions.
+
+HITL decisions use **effective_safety_level** = max(proposal.safety_level,
+tool_actions[*].safety_level) (with send/delete heuristics). A proposal that
+self-declares LOW but includes a HIGH tool action is gated as HIGH.
+"""
 
 from __future__ import annotations
 
@@ -22,7 +27,11 @@ _LEVEL_RANK = {
 
 
 def effective_safety_level(proposal: Proposal) -> SafetyLevel:
-    """Max safety level across proposal and its tool_actions."""
+    """Max safety level across proposal and its tool_actions.
+
+    This effective (max action) risk is what HITL uses — not proposal
+    self-declaration alone.
+    """
     level = getattr(proposal, "safety_level", None) or SafetyLevel.LOW
     if not isinstance(level, SafetyLevel):
         level = SafetyLevel(str(level))
@@ -34,7 +43,10 @@ def effective_safety_level(proposal: Proposal) -> SafetyLevel:
         # Heuristic: mutating HITL email/delete bumps to high/irreversible
         if a_level == SafetyLevel.LOW:
             tool = (action.tool or "").lower()
-            if action.requires_hitl or "send" in tool or "delete" in tool:
+            requires = getattr(action, "requires_hitl", False) or getattr(
+                action, "requires_hitl", False
+            )
+            if requires or "send" in tool or "delete" in tool:
                 a_level = SafetyLevel.HIGH
             if "delete_goal" in tool or "cancel_others" in tool or "email_draft_send" in tool:
                 a_level = (
@@ -53,17 +65,26 @@ def ensure_hitl_or_raise(
     human_approved: bool = False,
     force: bool = False,
 ) -> SafetyLevel:
-    """Block execute unless human_approved for high/irreversible.
+    """Block execute unless human_approved for high/irreversible *effective* risk.
 
     If force=True, allow through but caller must log human_override.
     """
     level = effective_safety_level(proposal)
     if level in HITL_REQUIRED_LEVELS and not human_approved and not force:
         raise HitlBlockedError(
-            f"Execution blocked: safety_level={level.value} requires human_approved=True",
+            f"Execution blocked: effective_safety_level={level.value} "
+            f"(proposal declared {getattr(proposal.safety_level, 'value', proposal.safety_level)}) "
+            f"requires human_approved=True",
             safety_level=level,
             proposal_id=proposal.proposal_id,
         )
+    return level
+
+
+def _proposal_declared_level(proposal: Proposal) -> SafetyLevel:
+    level = getattr(proposal, "safety_level", None) or SafetyLevel.LOW
+    if not isinstance(level, SafetyLevel):
+        level = SafetyLevel(str(level))
     return level
 
 
@@ -83,20 +104,36 @@ def gate_execution(
     """Gate execute and append a DecisionRecord.
 
     Returns the decision record. Raises HitlBlockedError if blocked (still logs).
+    Records both proposal_safety_level and effective_safety_level; ``safety_level``
+    mirrors effective for backward compatibility. Propagates proposal.trace_id.
     """
     log = decision_log or DecisionLog()
+    declared = _proposal_declared_level(proposal)
     level = effective_safety_level(proposal)
     objections = critic_objections or []
     obj_dicts = [
         o.model_dump() if hasattr(o, "model_dump") else dict(o) for o in objections
     ]
+    trace_id = getattr(proposal, "trace_id", None)
+    base_ctx = dict(context or {})
+    if trace_id:
+        base_ctx.setdefault("trace_id", trace_id)
+
+    def _make_rec(**kwargs) -> DecisionRecord:
+        return DecisionRecord(
+            trace_id=trace_id,
+            proposal_safety_level=declared,
+            effective_safety_level=level,
+            safety_level=level,
+            **kwargs,
+        )
 
     try:
         ensure_hitl_or_raise(proposal, human_approved=human_approved, force=force)
     except HitlBlockedError as err:
-        rec = DecisionRecord(
+        rec = _make_rec(
             decision="blocked_hitl",
-            context=context or {},
+            context=base_ctx,
             goals_involved=goals_involved or [],
             constraints=constraints or [f"safety:{level.value}"],
             proposal_summary=proposal.summary,
@@ -106,8 +143,7 @@ def gate_execution(
             final_decision="blocked_hitl",
             human_feedback=human_feedback,
             human_override=False,
-            safety_level=level,
-            notes=[str(err)],
+            notes=[str(err), "HITL uses effective (max action) risk, not proposal self-declaration alone"],
         )
         log.append(rec)
         raise
@@ -123,9 +159,19 @@ def gate_execution(
         final = "execute"
         decision = "execute"
 
-    rec = DecisionRecord(
+    notes = []
+    if human_approved:
+        notes.append("HITL approved")
+    elif override:
+        notes.append("forced override")
+    if declared != level:
+        notes.append(
+            f"effective_safety_level={level.value} > proposal_safety_level={declared.value}"
+        )
+
+    rec = _make_rec(
         decision=decision,
-        context=context or {},
+        context=base_ctx,
         goals_involved=goals_involved or [],
         constraints=constraints or [],
         proposal_summary=proposal.summary,
@@ -135,8 +181,7 @@ def gate_execution(
         final_decision=final,
         human_feedback=human_feedback,
         human_override=override,
-        safety_level=level,
-        notes=["HITL approved"] if human_approved else (["forced override"] if override else []),
+        notes=notes,
     )
     log.append(rec)
     return rec
