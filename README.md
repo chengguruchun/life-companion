@@ -6,7 +6,6 @@
 
 完整产品决策见 [DESIGN.md](./DESIGN.md)。
 
-## 
 ## What's new in v0.2 / v0.3
 
 | Version | Status | Highlights |
