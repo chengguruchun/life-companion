@@ -34,3 +34,7 @@ except HitlBlockedError:
     rec = gate_execution(proposal, human_approved=True, human_feedback="ok")
 ```
 
+
+## v0.4 设计（未实现）
+
+优先细化项：**Memory Confidence Pipeline** — 见 [`docs/v0.4-memory-confidence.md`](docs/v0.4-memory-confidence.md)。其余 v0.4 项仍见 [`ROADMAP.md`](ROADMAP.md)。
